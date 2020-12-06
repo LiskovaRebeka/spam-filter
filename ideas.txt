@@ -1,0 +1,14 @@
+Bayesan spam filtering:
+Interesting articles:
+http://www.paulgraham.com/spam.html
+http://www.paulgraham.com/better.html
++ Wikipedie
+
+
+Tasks:
+- separate words from emails into a dictionary (or set?)
+	-- by which separators? (space, -, ., ...)
+- filter out common words (a, and, or ...)
+- maybe ignore all html tags except of a few (links, images ...)
+- if available, message subject should have higher impact
+- is it worth it to look at sender information (name, ip adress)?
