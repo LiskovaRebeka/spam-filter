@@ -44,8 +44,3 @@ class RandomFilter():
 
     def train():
         pass
-
-
-A = NaiveFilter.test('/home/JL/Uni/RPH/spam/2')
-B = ParanoidFilter.test('/home/JL/Uni/RPH/spam/2')
-C = RandomFilter.test('/home/JL/Uni/RPH/spam/2')
