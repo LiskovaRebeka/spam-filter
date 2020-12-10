@@ -41,8 +41,9 @@ class TrainingCorpus(Corpus):
     def separate_words_from_emails(self):
         word_counter = Counter()
         for file_name, file_body in Corpus.emails():
-            # TODO: Remove diacritics before the word split
-            tokens = file_body.lower().split()
+            text = file_body.lower()
+            text = self.remove_interpunction(text)
+            tokens = text.split(" ")
 
             # This needs a rework, it is just a working version
             # TODO: html elements should be filtered out
@@ -76,6 +77,9 @@ class TrainingCorpus(Corpus):
         number_of_emails = len(self.truth_dict)
         number_of_spam_emails = self.get_number_of_spam_emails()
         number_of_ham_emails = number_of_emails - number_of_spam_emails
+        # Division by zero possible
+        if number_of_ham_emails == 0:
+            number_of_ham_emails = 1
         spammicity /= number_of_spam_emails
         hammicity /= number_of_ham_emails
         return (spammicity, hammicity)
@@ -88,9 +92,24 @@ class TrainingCorpus(Corpus):
         for word in all_words:
             spammicity_counter[word] = self.get_spammicity_of_word(word)[0]
             hammicity_counter[word] = self.get_spammicity_of_word(word)[1]
+        number_of_emails = len(self.truth_dict)
+        number_of_spam_emails = self.get_number_of_spam_emails()
+        number_of_ham_emails = number_of_emails - number_of_spam_emails
+        probability_of_spam_email = number_of_spam_emails/number_of_emails
+        probability_of_ham_email = number_of_ham_emails/number_of_emails
+        #formula: (spamicity_of_word*probability_of_spam_email)
+        #          /(spamicity_of_word*probability_of_spam_email + hamicity_of_word*probability_of_ham_email)
         # while testing functionality restrict the numbers with [.most_common]
         return (spammicity_counter, hammicity_counter)
 
+    def remove_interpunction(self, text):
+        text = text.replace(".", "")
+        text = text.replace(",", "")
+        text = text.replace("!", "")
+        text = text.replace("?", "")
+        text = text.replace("\n", " ")
+        return text
+    
 # Time needed to run: cca 1 min.
 # Examples of usage:
 
