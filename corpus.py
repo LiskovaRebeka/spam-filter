@@ -41,18 +41,20 @@ class TrainingCorpus(Corpus):
     def separate_words_from_emails(self):
         word_counter = Counter()
         for file_name, file_body in Corpus.emails():
-            # TODO: Remove diacritics before the word split
-            tokens = file_body.lower().split()
+            text = file_body.lower()
+            text = self.remove_interpunction(text)
+            tokens = text.split(" ")
 
             # This needs a rework, it is just a working version
-            # TODO: html elements should be filtered out
             new_tokens = []
             for token in range(len(tokens)):
                 if len(tokens[token]) > 3 and len(tokens[token]) < 15:
                     new_tokens.append(tokens[token])
 
-            self.emails_body[file_name] = Counter(new_tokens)
+            # TODO: html tags are not yet directly used
+            html_tags = self.find_html_tags(new_tokens)
 
+            self.emails_body[file_name] = Counter(new_tokens)
             # Updates the word counter with values from current file
             word_counter += Counter(new_tokens)
         # make a list of emails
@@ -76,6 +78,9 @@ class TrainingCorpus(Corpus):
         number_of_emails = len(self.truth_dict)
         number_of_spam_emails = self.get_number_of_spam_emails()
         number_of_ham_emails = number_of_emails - number_of_spam_emails
+        # Division by zero possible
+        if number_of_ham_emails == 0:
+            number_of_ham_emails = 1
         spammicity /= number_of_spam_emails
         hammicity /= number_of_ham_emails
         return (spammicity, hammicity)
@@ -86,13 +91,42 @@ class TrainingCorpus(Corpus):
         spammicity_counter = Counter(all_words)
         hammicity_counter = Counter(all_words)
         for word in all_words:
-            spammicity_counter[word] = self.get_spammicity_of_word(word)[0]
-            hammicity_counter[word] = self.get_spammicity_of_word(word)[1]
-        # while testing functionality restrict the numbers with [.most_common]
-        return (spammicity_counter, hammicity_counter)
+            word_spammicity = self.get_spammicity_of_word(word)
+            spammicity_counter[word] = word_spammicity[0]
+            hammicity_counter[word] = word_spammicity[1]
+        number_of_emails = len(self.truth_dict)
+        number_of_spam_emails = self.get_number_of_spam_emails()
+        number_of_ham_emails = number_of_emails - number_of_spam_emails
+        probability_of_spam_email = number_of_spam_emails/number_of_emails
+        probability_of_ham_email = number_of_ham_emails/number_of_emails
+        # formula: (spamicity_of_word*probability_of_spam_email)
+        #          /(spamicity_of_word*probability_of_spam_email +
+        #            hamicity_of_word*probability_of_ham_email)
+        # return (spammicity_counter, hammicity_counter)
+        return (spammicity_counter.most_common(20),
+                hammicity_counter.most_common(20))
 
-# Time needed to run: cca 1 min.
-# Examples of usage:
+    def remove_interpunction(self, text):
+        removed_chars = [".", ":", ",", "!", "?", "\n", "\t"]
+        for c in removed_chars:
+            text = text.replace(c, " ")
+            # if html tags are right next to each other make a space between
+            text = text.replace(">", "> ")
+        return text
 
-# Corpus = TrainingCorpus('[absolute path to a directory with emails]')
-# print(Corpus.get_overall_spammicity())
+    def find_html_tags(self, text):
+        # also fixes invalid html tags
+        html_tags = []
+        for word in text:
+            # TODO: Not only html tags are surrounded by <>
+            if word[0] == "<" and word[-1] != ">":
+                # Some tags are missing the end ">"
+                complete_tag = word + ">"
+                text.remove(word)
+                text.append(complete_tag)
+                html_tags.append(complete_tag)
+        return html_tags
+
+# Time needed to run: ~20 seconds
+# Corpus = TrainingCorpus('[absolute path to emails]')
+# result = Corpus.get_overall_spammicity()
