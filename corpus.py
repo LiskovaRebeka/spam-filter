@@ -14,6 +14,7 @@ class Corpus():
         self.all_emails = []
         self.emails_body = {}
 
+
     def emails(self):
         files = os.listdir(self.dir_path)
         files_dict = {}
@@ -44,8 +45,18 @@ class TrainingCorpus(Corpus):
             text = file_body.lower()
             text = self.remove_interpunction(text)
             tokens = text.split(" ")
-
+            #Removes words that include numbers
+            remove_numbers = []
+            for i in range(len(tokens)):
+                for j in range(len(tokens[i])):
+                    if tokens[i][j] > chr(48) and tokens[i][j] < chr(58):
+                        remove_numbers.append(i)
+                        break
+            for i in range(len(remove_numbers)):
+                tokens.pop(remove_numbers[i]-i)
+            
             # This needs a rework, it is just a working version
+            # TODO: html elements should be filtered out
             new_tokens = []
             for token in range(len(tokens)):
                 if len(tokens[token]) > 3 and len(tokens[token]) < 15:
@@ -53,8 +64,8 @@ class TrainingCorpus(Corpus):
 
             # TODO: html tags are not yet directly used
             html_tags = self.find_html_tags(new_tokens)
-
             self.emails_body[file_name] = Counter(new_tokens)
+
             # Updates the word counter with values from current file
             word_counter += Counter(new_tokens)
         # make a list of emails
@@ -91,23 +102,31 @@ class TrainingCorpus(Corpus):
         spammicity_counter = Counter(all_words)
         hammicity_counter = Counter(all_words)
         for word in all_words:
-            word_spammicity = self.get_spammicity_of_word(word)
-            spammicity_counter[word] = word_spammicity[0]
-            hammicity_counter[word] = word_spammicity[1]
+            spammicity_counter[word] = self.get_spammicity_of_word(word)[0]
+            hammicity_counter[word] = self.get_spammicity_of_word(word)[1]
         number_of_emails = len(self.truth_dict)
         number_of_spam_emails = self.get_number_of_spam_emails()
         number_of_ham_emails = number_of_emails - number_of_spam_emails
         probability_of_spam_email = number_of_spam_emails/number_of_emails
         probability_of_ham_email = number_of_ham_emails/number_of_emails
-        # formula: (spamicity_of_word*probability_of_spam_email)
-        #          /(spamicity_of_word*probability_of_spam_email +
-        #            hamicity_of_word*probability_of_ham_email)
-        # return (spammicity_counter, hammicity_counter)
-        return (spammicity_counter.most_common(20),
-                hammicity_counter.most_common(20))
+        spam_value_of_all_words = Counter(all_words)
+        # formula for filter
+        # Todo:
+        # Which probability of email being spam is best to apply?
+        # Now it is set 0.5 for spam and ham
+        for word in spam_value_of_all_words:
+            spam_value_of_all_words[word] = self.get_spam_value_of_word(spammicity_counter[word], 0.5, hammicity_counter[word])
+        # while testing functionality restrict the numbers with [.most_common]
+        return spam_value_of_all_words
+
+    def get_spam_value_of_word(self, spamicity_of_word, probability_of_spam_email, hamicity_of_word):
+        numerator = spamicity_of_word*probability_of_spam_email
+        denominator = spamicity_of_word*probability_of_spam_email + hamicity_of_word*(1-probability_of_spam_email)
+        return numerator/denominator
+
 
     def remove_interpunction(self, text):
-        removed_chars = [".", ":", ",", "!", "?", "\n", "\t"]
+        removed_chars = [".", ":", ",", "!", "?", "\n", "\t", "(", ")", "=", "*"]
         for c in removed_chars:
             text = text.replace(c, " ")
             # if html tags are right next to each other make a space between
@@ -126,6 +145,7 @@ class TrainingCorpus(Corpus):
                 text.append(complete_tag)
                 html_tags.append(complete_tag)
         return html_tags
+
 
 # Time needed to run: ~20 seconds
 # Corpus = TrainingCorpus('[absolute path to emails]')
