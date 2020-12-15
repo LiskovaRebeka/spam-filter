@@ -3,44 +3,47 @@ import os
 import random
 
 
-class NaiveFilter():
-    def test(dir_path):
+class BaseFilter():
+    temporary_evaluation = "OK"
+
+    def test(self, dir_path):
         result_dict = {}
         files = os.listdir(dir_path)
         for email in files:
             if email[0] != '!':
-                result_dict[email] = "OK"
+                result_dict[email] = self.classify_email()
         utils.write_classification_to_file(
                     os.path.join(dir_path, '!prediction.txt'), result_dict)
 
-    def train():
-        pass
+    def classify_email(self):
+        return self.temporary_evaluation
 
 
-class ParanoidFilter():
-    def test(dir_path):
-        result_dict = {}
-        files = os.listdir(dir_path)
-        for email in files:
-            if email[0] != '!':
-                result_dict[email] = "SPAM"
-        utils.write_classification_to_file(
-                    os.path.join(dir_path, '!prediction2.txt'), result_dict)
+class NaiveFilter(BaseFilter):
+    temporary_evaluation = "OK"
+
+    def classify_email(self):
+        return self.temporary_evaluation
 
     def train():
         pass
 
 
-class RandomFilter():
-    def test(dir_path):
-        result_dict = {}
-        files = os.listdir(dir_path)
-        values = ["SPAM", "OK"]
-        for email in files:
-            if email[0] != '!':
-                result_dict[email] = values[random.randint(0, 1)]
-        utils.write_classification_to_file(
-                    os.path.join(dir_path, '!prediction3.txt'), result_dict)
+class ParanoidFilter(BaseFilter):
+    temporary_evaluation = "SPAM"
+
+    def classify_email(self):
+        return self.temporary_evaluation
+
+    def train():
+        pass
+
+
+class RandomFilter(BaseFilter):
+    temporary_evaluation = ["SPAM", "OK"]
+
+    def classify_email(self):
+        return self.temporary_evaluation[random.randint(0, 1)]
 
     def train():
         pass
