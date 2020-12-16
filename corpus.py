@@ -38,39 +38,49 @@ class TrainingCorpus(Corpus):
             number_of_spam_emails = 1
         return number_of_spam_emails
 
-    def separate_words_from_emails(self):
+    def count_words_from_emails(self):
         word_counter = Counter()
-        for file_name, file_body in Corpus.emails():
-            text = file_body.lower()
-            text = self.remove_interpunction(text)
-            tokens = text.split(" ")
-
-            # Removes words that include numbers
-            remove_numbers = []
-            for i in range(len(tokens)):
-                for j in range(len(tokens[i])):
-                    if tokens[i][j] > chr(48) and tokens[i][j] < chr(58):
-                        remove_numbers.append(i)
-                        break
-            for i in range(len(remove_numbers)):
-                tokens.pop(remove_numbers[i]-i)
-
-            # This needs a rework, it is just a working version
+        for file_name, file_body in self.emails():
             new_tokens = []
-            for token in range(len(tokens)):
-                if len(tokens[token]) > 3 and len(tokens[token]) < 15:
-                    new_tokens.append(tokens[token])
-
-            # TODO: html tags are not yet directly used
-            html_tags = self.find_html_tags(new_tokens)
-
-            self.emails_body[file_name] = Counter(new_tokens)
+            new_tokens = self.separate_words_from_emails(file_name, file_body)
             # Updates the word counter with values from current file
+            self.emails_body[file_name] = Counter(new_tokens)
             word_counter += Counter(new_tokens)
         # make a list of emails
         for email, body in self.emails():
             self.all_emails.append(email)
-        return word_counter
+        return word_counter   
+
+            
+    def separate_words_from_emails(self, file_name, file_body):
+        text = file_body.lower()
+        text = self.remove_interpunction(text)
+        tokens = text.split(" ")
+
+        #Removes words that include 10% or more numbers
+        remove_numbers = []
+        for i in range(len(tokens)):
+            number = 0
+            number_of_signs = 0
+            for j in range(len(tokens[i])):
+                number_of_signs += 1
+                if tokens[i][j] > chr(48) and tokens[i][j] < chr(58):
+                    number += 1
+            if number/0.1 > number_of_signs:
+                remove_numbers.append(i)
+
+        for i in range(len(remove_numbers)):
+            tokens.pop(remove_numbers[i]-i)
+                
+        # This needs a rework, it is just a working version
+        new_tokens = []
+        for token in range(len(tokens)):
+            if len(tokens[token]) > 3 and len(tokens[token]) < 15:
+                new_tokens.append(tokens[token])
+
+        # TODO: html tags are not yet directly used
+        html_tags = self.find_html_tags(new_tokens)
+        return(new_tokens)
 
     def get_spammicity_of_word(self, word):
         # TODO:
@@ -97,7 +107,7 @@ class TrainingCorpus(Corpus):
 
     def get_overall_spammicity(self):
         # Calculates spammicity for all words in the dataset
-        all_words = self.separate_words_from_emails()
+        all_words = self.count_words_from_emails()
         spammicity_counter = Counter(all_words)
         hammicity_counter = Counter(all_words)
         for word in all_words:
@@ -106,42 +116,29 @@ class TrainingCorpus(Corpus):
             hammicity_counter[word] = word_spammicity[1]
         number_of_emails = len(self.truth_dict)
         number_of_spam_emails = self.get_number_of_spam_emails()
-        # TODO: Probability of spam emails might change - it will not be the
-        # same percentage on learning dataset and test dataset
         probability_of_spam_email = number_of_spam_emails/number_of_emails
-
         spam_value_of_all_words = Counter(all_words)
         # TODO:
         # Which probability of email being spam is best to apply?
         # Now it is calculated by truth_dict
-
+        
         # formula for filter
         for word in spam_value_of_all_words:
-            spam_value_of_all_words[word] = self.get_spam_value_of_word(
-                                                    spammicity_counter[word],
-                                                    probability_of_spam_email,
-                                                    hammicity_counter[word])
-
+            spam_value_of_all_words[word] = self.get_spam_value_of_word(spammicity_counter[word], probability_of_spam_email, hammicity_counter[word])
         # while testing functionality restrict the numbers with [.most_common]
-        return (spammicity_counter.most_common(20),
-                hammicity_counter.most_common(20),
-                spam_value_of_all_words)
+        return (spam_value_of_all_words)
 
-    def get_spam_value_of_word(self, spammicity_of_word,
-                               probability_of_spam_email, hammicity_of_word):
-        numerator = spammicity_of_word*probability_of_spam_email
-        denominator = ((spammicity_of_word*probability_of_spam_email) +
-                       (hammicity_of_word*(1-probability_of_spam_email)))
+    def get_spam_value_of_word(self, spamicity_of_word, probability_of_spam_email, hamicity_of_word):
+        numerator = spamicity_of_word*probability_of_spam_email
+        denominator = spamicity_of_word*probability_of_spam_email + hamicity_of_word*(1-probability_of_spam_email)
         return numerator/denominator
 
     def remove_interpunction(self, text):
-        removed_chars = [".", ":", ",", "!", "?", "\n", "\t",
-                         "(", ")", "=", "*"]
+        removed_chars = [".", ":", ",", "!", "?", "\n", "\t", "(", ")", "=", "*"]
         for c in removed_chars:
             text = text.replace(c, " ")
-
-        # if html tags are right next to each other make a space between
-        text = text.replace(">", "> ")
+            # if html tags are right next to each other make a space between
+            text = text.replace(">", "> ")
         return text
 
     def find_html_tags(self, text):
