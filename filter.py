@@ -2,18 +2,25 @@ import corpus
 import os
 import utils
 
+from collections import Counter
+
+SPAM_TAG = "SPAM"
+HAM_TAG = "HAM"
+SPAM_VALUE_FOR_NEW_WORD = 0.4
+SPAM_PROBABILITY_TOLERANCE = 0.8
+
 
 class BaseFilter():
     # Parent class for all possible filter types
-    def test(self, dir_path):
+    def test(self, testing_dir):
         result_dict = {}
-        files = os.listdir(dir_path)
+        files = os.listdir(testing_dir)
         for email in files:
             if email[0] != '!':
                 # TODO: function classify.email()
                 result_dict[email] = self.classify_email()
         utils.write_classification_to_file(
-                    os.path.join(dir_path, '!prediction.txt'), result_dict)
+                    os.path.join(testing_dir, '!prediction.txt'), result_dict)
 
     def classify_email(self):
         temporary_evaluation = "OK"
@@ -21,57 +28,80 @@ class BaseFilter():
 
 
 class BayesFilter(BaseFilter):
+    def __init__(self):
+        self.testing_emails_body = {}
+
     def train(self, training_dir):
         training_corpus = corpus.TrainingCorpus(training_dir)
         self.trained_corpus_dict = training_corpus.get_overall_spammicity()
 
-    def test(self, dir_path):
+    def test(self, testing_dir):
         # TODO:
-        # get words from testing email
-        # evaluate them with values from trained data
-        # - problem with nonexistent words
         # - solutions for similiar words (eg. those with extra "!")
         # -- maybe look for subsets of words
+        testing_corpus = corpus.TestingCorpus(testing_dir)
 
-        testing_corpus = corpus.TrainingCorpus(dir_path)
-        for file_name, file_body in testing_corpus.emails():
-            testing_corpus_array = testing_corpus.separate_words_from_emails(file_name, file_body)
-            words_in_email = []
-            testing_word_counter = testing_corpus.count_words_from_emails()
-            
-            for i in range(len(testing_corpus_array)):
-                words_in_email.append(testing_corpus_array[i])
+        testing_words_counter = testing_corpus.count_words_from_emails()
 
-            words_with_values = self.value_for_words_in_email(words_in_email)
-            
+        # complete_counter should have all words from training and
+        # testing emails valued by their spammicity levels
+        testing_complete_counter = self.value_for_words_in_email(testing_words_counter)
+        complete_counter = self.remove_neutral_words(testing_complete_counter)
 
+        predicted_spam_probability = {}
+        # Final formula to calculate email's spam probability
+        for email in testing_corpus.emails_body:
+            numerator = 1
+            denominator = 1
+            words_considered = 0
+            for word in testing_corpus.emails_body[email]:
+                # TODO:
+                # a bit awkward way to remove words with those weights 0, 1
+                if complete_counter[word] != 0 and complete_counter[word] != 1:
+                    # TODO:
+                    # I am not really sure about the order of operations here
+                    numerator *= complete_counter[word]
+                    denominator += numerator
+                    denominator *= (1 - complete_counter[word])
+                words_considered += 1
+                # TODO: Consider words with the most important weights
+                # Now first fifteen words are considered
+                if (words_considered > 15):
+                    break
+            predicted_spam_probability[email] = numerator / denominator
 
-        #resulting_dict = self.classify_emails(dir_path)
-        # TODO: write the final evaluation to a file
+        self.write_results_to_file(predicted_spam_probability, testing_dir)
 
     def value_for_words_in_email(self, words_in_email):
-        dictionary = {}
+        # fill the counter with values of words not seen in training phase
+        complete_counter = Counter()
         for word in words_in_email:
+            # Word was found in training dataset
             if word in self.trained_corpus_dict:
-                dictionary[word] = self.trained_corpus_dict[word]
+                complete_counter[word] = self.trained_corpus_dict[word]
+            # word is new
             else:
                 # Which value is best for word
                 # that was not in the training corpus
                 # Now it is set on 0.4
-                dictionary[word] = 0.4
-        return(dictionary)
+                complete_counter[word] = SPAM_VALUE_FOR_NEW_WORD
+        return complete_counter
 
+    def remove_neutral_words(self, word_counter):
+        # remove words which are neither indicating spam or ham
+        new_word_counter = Counter()
+        for word in word_counter:
+            if word_counter[word] != 0.5:
+                new_word_counter[word] = word_counter[word]
+        return new_word_counter
 
-    def classify_emails(self, dir_path):
-        testing_corpus = corpus.TrainingCorpus(dir_path)
-        testing_word_counter = testing_corpus.separate_words_from_emails()
-        most_common_words_dict = {}
-        for email in testing_corpus.emails_body:
-            most_common_words_dict[email] = testing_corpus.emails_body[email].most_common(20)
-        """
-        for email in testing_corpus.emails_body:
-            for word in most_common_words_dict:
-                if isinstance(word, self.trained_corpus_dict):
-                    print(word)
-                    return
-        """
+    def write_results_to_file(self, predicted_spam_probability, testing_dir):
+        result_dict = {}
+        files = os.listdir(testing_dir)
+        for email in files:
+            if predicted_spam_probability[email] > SPAM_PROBABILITY_TOLERANCE:
+                result_dict[email] = SPAM_TAG
+            else:
+                result_dict[email] = HAM_TAG
+        utils.write_classification_to_file(
+                    os.path.join(testing_dir, '!prediction.txt'), result_dict)
