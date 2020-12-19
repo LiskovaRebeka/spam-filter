@@ -49,16 +49,16 @@ class TrainingCorpus(Corpus):
         # make a list of emails
         for email, body in self.emails():
             self.all_emails.append(email)
-        return word_counter
+        return word_counter   
 
+            
     def separate_words_from_email(self, file_name, file_body):
         text = file_body.lower()
         text = self.remove_interpunction(text)
         tokens = text.split(" ")
 
-        # Removes words that include 10% or more numbers
-        # TODO: generalize this to all symbols not only numbers
-        tokens_length = len(tokens)
+        #Removes words that include 10% or more numbers
+        remove_numbers = []
         for i in range(tokens_length):
             number_of_digits = 0
             number_of_chars = 0
@@ -69,6 +69,9 @@ class TrainingCorpus(Corpus):
             if (number_of_chars/0.1) < number_of_digits:
                 del tokens[i]
 
+        for i in range(len(remove_numbers)):
+            tokens.pop(remove_numbers[i]-i)
+                
         # This needs a rework, it is just a working version
         new_tokens = []
         for token in range(len(tokens)):
@@ -80,6 +83,10 @@ class TrainingCorpus(Corpus):
         return new_tokens
 
     def get_spammicity_of_word(self, word):
+        # TODO:
+        # If a word appears in a single email multiple times
+        # should we count it only once or not?
+        # Right now it is counted more times
         spammicity = 0
         hammicity = 0
         for email in self.all_emails:
@@ -109,6 +116,7 @@ class TrainingCorpus(Corpus):
             hammicity_counter[word] = word_spammicity[1]
         number_of_emails = len(self.truth_dict)
         number_of_spam_emails = self.get_number_of_spam_emails()
+
         # TODO: Probability of spam emails might change - it will not be the
         # same percentage on learning dataset and test dataset
         probability_of_spam_email = number_of_spam_emails/number_of_emails
@@ -116,29 +124,25 @@ class TrainingCorpus(Corpus):
         # TODO:
         # Which probability of email being spam is best to apply?
         # Now it is calculated by truth_dict
-
+        
         # formula for filter
         for word in spam_value_of_all_words:
-            spam_value_of_all_words[word] = self.get_spam_value_of_word(
-                                                    spammicity_counter[word],
-                                                    probability_of_spam_email,
-                                                    hammicity_counter[word])
-        return spam_value_of_all_words
+            spam_value_of_all_words[word] = self.get_spam_value_of_word(spammicity_counter[word], probability_of_spam_email, hammicity_counter[word])
+        # while testing functionality restrict the numbers with [.most_common]
+        return (spam_value_of_all_words)
 
-    def get_spam_value_of_word(self, spamicity_of_word,
-                               probability_of_spam_email, hamicity_of_word):
+    def get_spam_value_of_word(self, spamicity_of_word, probability_of_spam_email, hamicity_of_word):
         numerator = spamicity_of_word*probability_of_spam_email
-        denominator = (spamicity_of_word*probability_of_spam_email +
-                       (hamicity_of_word*(1-probability_of_spam_email)))
+        denominator = spamicity_of_word*probability_of_spam_email + hamicity_of_word*(1-probability_of_spam_email)
         return numerator/denominator
 
     def remove_interpunction(self, text):
-        removed_chars = [".", ":", ",", "!", "?", "\n", "\t",
-                         "(", ")", "=", "*"]
+        removed_chars = [".", ":", ",", "!", "?", "\n", "\t", "(", ")", "=", "*"]
         for c in removed_chars:
             text = text.replace(c, " ")
             # if html tags are right next to each other make a space between
         text = text.replace(">", "> ")
+        text = text.replace("<", " <")
         return text
 
     def find_html_tags(self, text):
@@ -146,14 +150,13 @@ class TrainingCorpus(Corpus):
         html_tags = []
         for word in text:
             # TODO: Not only html tags are surrounded by <>
-            if word[0] == "<" and word[-1] != ">":
+            if word[0] == "<" and word[-1] == ">":
                 # Some tags are missing the end ">"
-                complete_tag = word + ">"
-                text.remove(word)
-                text.append(complete_tag)
+                complete_tag = word 
                 html_tags.append(complete_tag)
-            elif word[0] == "<":
-                html_tags.append(word)
+        for tag in html_tags:
+            text.remove(tag)
+
         return html_tags
 
 
@@ -164,5 +167,4 @@ class TestingCorpus(TrainingCorpus):
         self.dir_path = dir_path
         self.all_emails = []
         self.emails_body = {}
-
 # Time needed to run: ~20 seconds
