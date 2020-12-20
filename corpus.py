@@ -13,6 +13,7 @@ class Corpus():
                                             self.dir_path, '!truth.txt'))
         self.all_emails = []
         self.emails_body = {}
+        self.array = ["from", "with", "mail"]
 
     def emails(self):
         files = os.listdir(self.dir_path)
@@ -74,7 +75,7 @@ class TrainingCorpus(Corpus):
         # This needs a rework, it is just a working version
         new_tokens = []
         for token in range(len(tokens)):
-            if len(tokens[token]) > 3 and len(tokens[token]) < 15:
+            if len(tokens[token]) > 3 and len(tokens[token]) < 15 and tokens[token] not in self.array:
                 new_tokens.append(tokens[token])
 
         # TODO: html tags are not yet directly used
@@ -86,8 +87,10 @@ class TrainingCorpus(Corpus):
         # If a word appears in a single email multiple times
         # should we count it only once or not?
         # Right now it is counted more times
-        spammicity = 0
-        hammicity = 0
+
+        # Laplace smoothing - no word has probability 0.0 or 1.0
+        spammicity = 1
+        hammicity = 1
         for email in self.all_emails:
             words_freq = self.emails_body[email]
             if self.truth_dict[email] == SPAM_TAG:
@@ -100,8 +103,9 @@ class TrainingCorpus(Corpus):
         # Division by zero possible
         if number_of_ham_emails == 0:
             number_of_ham_emails = 1
-        spammicity /= number_of_spam_emails
-        hammicity /= number_of_ham_emails
+        # +2 because of Laplace smoothing 
+        spammicity /= (number_of_spam_emails + 2)
+        hammicity /= (number_of_ham_emails + 2)
         return (spammicity, hammicity)
 
     def get_overall_spammicity(self):
@@ -122,11 +126,11 @@ class TrainingCorpus(Corpus):
         spam_value_of_all_words = Counter(all_words)
         # TODO:
         # Which probability of email being spam is best to apply?
-        # Now it is calculated by truth_dict
+        # Now it is set on 0.65
         
         # formula for filter
         for word in spam_value_of_all_words:
-            spam_value_of_all_words[word] = self.get_spam_value_of_word(spammicity_counter[word], probability_of_spam_email, hammicity_counter[word])
+            spam_value_of_all_words[word] = self.get_spam_value_of_word(spammicity_counter[word], 0.65, hammicity_counter[word])
         # while testing functionality restrict the numbers with [.most_common]
         return (spam_value_of_all_words)
 
@@ -166,5 +170,6 @@ class TestingCorpus(TrainingCorpus):
         self.dir_path = dir_path
         self.all_emails = []
         self.emails_body = {}
+        self.array = ["from", "with", "mail"]
 
 # Time needed to run: ~20 seconds
