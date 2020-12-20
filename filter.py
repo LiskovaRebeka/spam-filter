@@ -8,7 +8,7 @@ from collections import Counter
 SPAM_TAG = "SPAM"
 HAM_TAG = "OK"
 SPAM_VALUE_FOR_NEW_WORD = 0.4
-SPAM_PROBABILITY_TOLERANCE = 0.8
+SPAM_PROBABILITY_TOLERANCE = 0.9
 
 
 class BaseFilter():
@@ -57,13 +57,10 @@ class BayesFilter(BaseFilter):
             words_considered = 0
             for word in testing_corpus.emails_body[email]:
                 # TODO:
-                # a bit awkward way to remove words with those weights 0, 1
-                if complete_counter[word] != 0 and complete_counter[word] != 1:
-                    # TODO:
-                    # (I am not really sure about the order of operations here)
-                    # I am not sure either
-                    numerator *= complete_counter[word]
-                    denominator *= (1 - complete_counter[word])
+                # (I am not really sure about the order of operations here)
+                # I am not sure either
+                numerator *= complete_counter[word]
+                denominator *= (1 - complete_counter[word])
                 words_considered += 1
                 # TODO: Consider words with the most important weights
                 # Now first fifteen words are considered
@@ -109,3 +106,5 @@ class BayesFilter(BaseFilter):
                 result_dict[email] = HAM_TAG
         utils.write_classification_to_file(
                     os.path.join(testing_dir, '!prediction.txt'), result_dict)
+        
+        
